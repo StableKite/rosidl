@@ -13,13 +13,16 @@
 # limitations under the License.
 
 import contextlib
+from collections.abc import Generator, Iterable, Sequence
 import json
 import os
 import pathlib
 import tempfile
 
+_StrPath = str | os.PathLike[str]
 
-def package_name_from_interface_file_path(path):
+
+def package_name_from_interface_file_path(path: _StrPath) -> str:
     """
     Derive ROS package name from a ROS interface definition file path.
 
@@ -29,7 +32,7 @@ def package_name_from_interface_file_path(path):
     return pathlib.Path(os.path.abspath(path)).parents[1].name
 
 
-def dependencies_from_include_paths(include_paths):
+def dependencies_from_include_paths(include_paths: Iterable[_StrPath]) -> list[str]:
     """
     Collect dependencies' ROS interface definition files from include paths.
 
@@ -45,7 +48,7 @@ def dependencies_from_include_paths(include_paths):
     })
 
 
-def interface_path_as_tuple(path):
+def interface_path_as_tuple(path: _StrPath) -> tuple[pathlib.Path, pathlib.Path]:
     """
     Express interface definition file path as an (absolute prefix, relative path) tuple.
 
@@ -72,7 +75,7 @@ def interface_path_as_tuple(path):
     return prefix, path
 
 
-def idl_tuples_from_interface_files(interface_files):
+def idl_tuples_from_interface_files(interface_files: Iterable[_StrPath]) -> list[str]:
     """
     Express ROS interface definition file paths as IDL tuples.
 
@@ -80,14 +83,16 @@ def idl_tuples_from_interface_files(interface_files):
     which to resolve it followed by a colon ':'. This function then applies
     the same logic as `interface_path_as_tuple`.
     """
-    idl_tuples = []
+    idl_tuples: list[str] = []
     for path in interface_files:
         prefix, path = interface_path_as_tuple(path)
         idl_tuples.append(f'{prefix}:{path.as_posix()}')
     return idl_tuples
 
 
-def build_type_description_tuples(idl_interface_files, type_description_files):
+def build_type_description_tuples(
+    idl_interface_files: Iterable[_StrPath], type_description_files: Sequence[_StrPath]
+) -> list[str]:
     """
     Create type description tuples from IDL interface files and type descriptions.
 
@@ -95,22 +100,24 @@ def build_type_description_tuples(idl_interface_files, type_description_files):
     :param type_description_files: List of type description files
     :return: List of type description tuples of the form 'idl_file_path:type_description_file'
     """
-    def get_type_description_file(idl_file, type_description_files):
+    def get_type_description_file(
+        idl_file: _StrPath, type_description_files: Sequence[_StrPath]
+    ) -> _StrPath | None:
         for type_description_file in type_description_files:
             if pathlib.Path(idl_file).stem == pathlib.Path(type_description_file).stem:
                 return type_description_file
 
-    type_description_tuples = []
+    type_description_tuples: list[str] = []
     for idl_file in idl_interface_files:
         type_description_file = get_type_description_file(idl_file, type_description_files)
         if type_description_file is None:
             raise ValueError(f'Type description file not found for {idl_file}')
         _, path = interface_path_as_tuple(idl_file)
-        type_description_tuples.append(f'{path}:{type_description_file}')
+        type_description_tuples.append(f'{path.as_posix()}:{type_description_file}')
     return type_description_tuples
 
 
-def ros_interface_file_from_idl(idl_file):
+def ros_interface_file_from_idl(idl_file: _StrPath) -> pathlib.Path:
     """
     Return the absolute path of the ROS interface file generated from the given IDL file.
 
@@ -123,7 +130,7 @@ def ros_interface_file_from_idl(idl_file):
 
 
 @contextlib.contextmanager
-def generator_arguments_file(**kwargs):
+def generator_arguments_file(**kwargs: object) -> Generator[str, None, None]:
     """
     Create a temporary file containing generator arguments.
 
@@ -146,12 +153,12 @@ def generator_arguments_file(**kwargs):
 
 def legacy_generator_arguments(
     *,
-    package_name,
-    interface_files,
-    include_paths,
-    templates_path,
-    output_path
-):
+    package_name: str,
+    interface_files: Iterable[_StrPath],
+    include_paths: Iterable[_StrPath],
+    templates_path: _StrPath,
+    output_path: _StrPath
+) -> dict[str, object]:
     """
     Return a dict containing the generator arguments for the legacy ROSIDL generator.
 
@@ -166,7 +173,7 @@ def legacy_generator_arguments(
       generator script this arguments are for
     :param output_path: Path to the output directory for generated code
     """
-    arguments = {}
+    arguments: dict[str, object] = {}
     arguments['package_name'] = package_name
     arguments['output_dir'] = os.path.abspath(output_path)
     arguments['template_dir'] = os.path.abspath(templates_path)
@@ -181,12 +188,12 @@ def legacy_generator_arguments(
 @contextlib.contextmanager
 def legacy_generator_arguments_file(
     *,
-    package_name,
-    interface_files,
-    include_paths,
-    templates_path,
-    output_path
-):
+    package_name: str,
+    interface_files: Iterable[_StrPath],
+    include_paths: Iterable[_StrPath],
+    templates_path: _StrPath,
+    output_path: _StrPath
+) -> Generator[str, None, None]:
     """
     Create a temporary file containing legacy arguments only.
 
@@ -207,10 +214,10 @@ def legacy_generator_arguments_file(
 
 def generate_visibility_control_file(
     *,
-    package_name,
-    template_path,
-    output_path
-):
+    package_name: str,
+    template_path: _StrPath,
+    output_path: _StrPath
+) -> None:
     """
     Generate a visibility control file from a template.
 
@@ -233,10 +240,10 @@ def generate_visibility_control_file(
         fd.write(content)
 
 
-def split_idl_interface_files(interface_files):
+def split_idl_interface_files(interface_files: Iterable[str]) -> tuple[list[str], list[str]]:
     """Split interface files into IDL and non-IDL files."""
-    idl_interface_files = []
-    non_idl_interface_files = []
+    idl_interface_files: list[str] = []
+    non_idl_interface_files: list[str] = []
     for path in interface_files:
         if not path.endswith('.idl'):
             non_idl_interface_files.append(path)
