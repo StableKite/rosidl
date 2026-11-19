@@ -20,7 +20,7 @@ import sys
 def test_shared_buffer_preserves_free_threading() -> None:
     environment = dict(os.environ)
     environment.pop('PYTHON_GIL', None)
-    subprocess.run([sys.executable, '-c', '''
+    subprocess.run([sys.executable, '-c', """
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 import sys
@@ -51,4 +51,4 @@ with ThreadPoolExecutor(max_workers=8) as executor:
 
 if free_threaded:
     assert not sys._is_gil_enabled()
-'''], env=environment, check=True)
+"""], env=environment, check=True)
