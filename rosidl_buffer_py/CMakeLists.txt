@@ -39,6 +39,12 @@ install(TARGETS _rosidl_buffer_py
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
+  find_package(ament_cmake_pytest REQUIRED)
+
+  pybind11_add_module(_rosidl_buffer_test_support test/buffer_factory.cpp)
+  target_link_libraries(_rosidl_buffer_test_support PRIVATE rosidl_buffer::rosidl_buffer)
+  ament_add_pytest_test(test_buffer test/test_buffer.py
+    APPEND_ENV "PYTHONPATH=$<TARGET_FILE_DIR:_rosidl_buffer_py>")
 endif()
 
 ament_package()

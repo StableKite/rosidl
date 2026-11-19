@@ -17,7 +17,9 @@
 
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "rosidl_buffer/buffer.hpp"
@@ -41,16 +43,28 @@ public:
   {
   }
 
-  size_t size() const {return buffer_->size();}
+  size_t size() const
+  {
+    std::lock_guard<std::mutex> guard(backend_mutex_);
+    return buffer_->size();
+  }
 
-  std::string get_backend_type() const {return buffer_->get_backend_type();}
+  std::string get_backend_type() const
+  {
+    std::lock_guard<std::mutex> guard(backend_mutex_);
+    return buffer_->get_backend_type();
+  }
 
   /// Copy buffer contents to Python bytes (all backends).
   /// Used by rosidl_runtime_py (message_to_ordereddict, message_to_yaml)
   /// to serialize buffer data to dicts, YAML, and CSV.
   py::bytes to_bytes() const
   {
-    std::vector<uint8_t> vec = buffer_->to_vector();
+    std::vector<uint8_t> vec;
+    {
+      std::lock_guard<std::mutex> guard(backend_mutex_);
+      vec = buffer_->to_vector();
+    }
     return py::bytes(
       reinterpret_cast<const char *>(vec.data()),
       vec.size());
@@ -67,15 +81,22 @@ public:
 
   std::string repr() const
   {
+    std::lock_guard<std::mutex> guard(backend_mutex_);
     return "Buffer(size=" + std::to_string(buffer_->size()) +
            ", backend='" + buffer_->get_backend_type() + "')";
   }
 
 private:
   std::shared_ptr<rosidl::Buffer<uint8_t>> buffer_;
+  // Backends may use internal state even for logically read-only operations.
+  mutable std::mutex backend_mutex_;
 };
 
+#ifdef Py_GIL_DISABLED
+PYBIND11_MODULE(_rosidl_buffer_py, m, py::mod_gil_not_used())
+#else
 PYBIND11_MODULE(_rosidl_buffer_py, m)
+#endif
 {
   m.doc() = "Python bindings for rosidl::Buffer<uint8_t>";
 
@@ -103,9 +124,9 @@ PYBIND11_MODULE(_rosidl_buffer_py, m)
   // Takes ownership of a heap-allocated Buffer<uint8_t>. The pointer
   // must have been allocated with `new` so that the default `delete`
   // deleter is valid. Ownership is transferred to the returned PyBuffer.
-  m.def("_take_buffer_from_ptr", [](uintptr_t ptr) -> PyBuffer {
+  m.def("_take_buffer_from_ptr", [](uintptr_t ptr) {
       auto * buf = reinterpret_cast<rosidl::Buffer<uint8_t> *>(ptr);
       auto shared_buf = std::shared_ptr<rosidl::Buffer<uint8_t>>(buf);
-      return PyBuffer(shared_buf);
+      return std::make_unique<PyBuffer>(std::move(shared_buf));
     });
 }
